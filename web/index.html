@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>IR Beam Monitor</title>
+        <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+        <style>
+            body { 
+                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+                background: #f0f2f5; 
+                padding: 40px; 
+                display: flex; 
+                flex-direction: column; 
+                align-items: center; 
+            }
+            .card { 
+                background: white; 
+                padding: 20px; 
+                border-radius: 12px; 
+                box-shadow: 0 4px 6px rgba(0,0,0,0.1); 
+                width: 100%; 
+                max-width: 400px; 
+            }
+            h1 { color: #333; font-size: 1.5rem; margin-bottom: 20px; }
+            .log-entry { 
+                padding: 12px; 
+                border-bottom: 1px solid #eee; 
+                display: flex; 
+                justify-content: space-between;
+                color: #555;
+            }
+            .log-entry:last-child { border-bottom: none; }
+            .timestamp { font-weight: bold; color: #007bff; }
+        </style>
+    </head>
+    <body>
+        <div class="card">
+            <div id="status-bar" style="margin-bottom: 20px; text-align: center; font-weight: bold;">
+            Checking status...
+            </div>
+
+            <h1>Latest Beam Breaks</h1>
+            <div id="log">Loading logs...</div>
+        </div>a
+        
+        <script type="module">
+            import { SUPABASE_URL, SUPABASE_KEY } from './config.js';
+            const sbClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+            async function fetchLogs() {
+            // Fetch 10 items for the log
+            const { data, error } = await sbClient
+                .from('MouseDetector')
+                .select('*')
+                .order('created_at', { ascending: false })
+                .limit(10);
+
+            if (error) return;
+
+            const logDiv = document.getElementById('log');
+            const statusBar = document.getElementById('status-bar');
+
+            // 1. Update Status Bar (based on the very latest record)
+            const latest = data[0];
+            const lastSeen = new Date(latest.created_at);
+            const isOnline = (new Date() - lastSeen) < 120000; // 2 minute buffer
+
+            statusBar.innerHTML = isOnline 
+                ? `<span style="color: green;">●</span> Device Online` 
+                : `<span style="color: red;">●</span> Device Offline`;
+
+            // 2. Update Log List (Filter out heartbeats if you want to see ONLY movements)
+            // Note: If you want to see everything, just map(data)
+            logDiv.innerHTML = data
+                .filter(row => row.event_type === 'movement') // Optional: hide heartbeats from the list
+                .map(row => `
+                    <div class="log-entry">
+                        <span>Movement</span>
+                        <span class="timestamp">${new Date(row.created_at).toLocaleTimeString()}</span>
+                    </div>
+                `).join('');
+            }
+
+            // Fetch once on load
+            fetchLogs();
+            
+            // Refresh every 5 seconds
+            setInterval(fetchLogs, 5000);
+        </script>
+    </body>
+</html>
